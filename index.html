@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>门店音频播放器</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#127925;</text></svg>">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --primary: #2563eb; --primary-dark: #1d4ed8; --primary-light: #dbeafe;
+  --accent: #f59e0b; --bg: #f1f5f9; --surface: #ffffff;
+  --text: #0f172a; --text-secondary: #64748b; --text-light: #94a3b8;
+  --border: #e2e8f0; --danger: #ef4444; --success: #10b981;
+  --radius: 12px; --shadow: 0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.06);
+  --player-height: 80px;
+}
+html { font-size: 16px; -webkit-text-size-adjust: 100%; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  background: var(--bg); color: var(--text); line-height: 1.5; min-height: 100vh;
+  padding-bottom: calc(var(--player-height) + 20px);
+}
+button { font-family: inherit; cursor: pointer; border: none; background: none; }
+input[type="file"] { display: none; }
+.header { background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100; padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; user-select: none; }
+.header-title { font-size: 1.15rem; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+.header-title svg { width: 24px; height: 24px; color: var(--primary); }
+.header-actions { display: flex; gap: 6px; align-items: center; }
+.admin-badge { background: var(--success); color: #fff; font-size: .72rem; padding: 3px 10px; border-radius: 20px; font-weight: 600; }
+.icon-btn { width: 44px; height: 44px; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: var(--text-secondary); transition: background .15s; }
+.icon-btn:hover { background: var(--bg); }
+.icon-btn svg { width: 20px; height: 20px; }
+.bt-banner { background: linear-gradient(135deg, #1e3a5f, #2563eb); color: #fff; padding: 10px 16px; display: flex; align-items: center; gap: 10px; font-size: .85rem; }
+.bt-banner .bt-icon { width: 28px; height: 28px; background: rgba(255,255,255,.15); border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.bt-banner .bt-icon svg { width: 18px; height: 18px; }
+.bt-banner .bt-text { flex: 1; }
+.bt-banner .bt-text strong { display: block; font-size: .88rem; }
+.bt-banner .bt-text span { opacity: .8; font-size: .78rem; }
+.update-bar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 8px 16px; display: flex; justify-content: space-between; align-items: center; font-size: .8rem; color: var(--text-secondary); }
+.update-bar .refresh-btn { color: var(--primary); font-weight: 500; display: flex; align-items: center; gap: 4px; }
+.update-bar .refresh-btn svg { width: 14px; height: 14px; }
+.container { max-width: 720px; margin: 0 auto; padding: 16px; }
+.upload-zone { border: 2px dashed var(--border); border-radius: var(--radius); background: var(--surface); padding: 28px 20px; text-align: center; cursor: pointer; transition: all .2s; margin-bottom: 20px; }
+.upload-zone:hover, .upload-zone.dragover { border-color: var(--primary); background: var(--primary-light); }
+.upload-zone svg { width: 36px; height: 36px; color: var(--primary); margin-bottom: 8px; }
+.upload-zone .upload-title { font-size: .95rem; font-weight: 600; margin-bottom: 4px; }
+.upload-zone .upload-hint { font-size: .8rem; color: var(--text-secondary); }
+.admin-section { display: none; }
+body.is-admin .admin-section { display: block; }
+.section-title { font-size: .9rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; }
+.section-title .count-badge { background: var(--primary-light); color: var(--primary); padding: 2px 10px; border-radius: 20px; font-size: .78rem; font-weight: 600; }
+.audio-list { display: flex; flex-direction: column; gap: 8px; }
+.audio-item { background: var(--surface); border-radius: var(--radius); padding: 12px 14px; display: flex; align-items: center; gap: 12px; box-shadow: var(--shadow); transition: all .15s; border: 2px solid transparent; }
+.audio-item.playing { border-color: var(--primary); background: var(--primary-light); }
+.audio-item .play-mini { width: 44px; height: 44px; border-radius: 50%; background: var(--primary); color: #fff; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: transform .1s; }
+.audio-item .play-mini:active { transform: scale(.95); }
+.audio-item .play-mini svg { width: 18px; height: 18px; }
+.audio-item .audio-info { flex: 1; min-width: 0; }
+.audio-item .audio-name { font-size: .92rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px; }
+.audio-item .audio-meta { font-size: .75rem; color: var(--text-secondary); }
+.audio-item .audio-actions { display: flex; gap: 4px; }
+.audio-item .audio-actions button { width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: var(--text-secondary); transition: all .15s; }
+.audio-item .audio-actions button:hover { background: var(--bg); color: var(--text); }
+.audio-item .audio-actions button.download-btn:hover { color: var(--primary); }
+.audio-item .audio-actions button.delete-btn:hover { color: var(--danger); }
+.audio-item .audio-actions svg { width: 17px; height: 17px; }
+body:not(.is-admin) .delete-btn { display: none; }
+.empty-state, .loading-state { text-align: center; padding: 40px 20px; color: var(--text-light); }
+.empty-state svg { width: 56px; height: 56px; margin-bottom: 12px; opacity: .5; }
+.empty-state p { font-size: .9rem; }
+.spinner { width: 28px; height: 28px; border: 3px solid var(--border); border-top-color: var(--primary); border-radius: 50%; margin: 0 auto 10px; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.player-bar { position: fixed; bottom: 0; left: 0; right: 0; background: #0f172a; color: #fff; z-index: 200; padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); transform: translateY(100%); transition: transform .3s ease; }
+.player-bar.active { transform: translateY(0); }
+.player-inner { max-width: 720px; margin: 0 auto; }
+.player-track-info { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: .82rem; }
+.player-track-info .track-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-right: 12px; font-weight: 500; }
+.player-track-info .track-time { color: #94a3b8; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+.progress-wrap { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.progress-bar { flex: 1; height: 6px; background: rgba(255,255,255,.15); border-radius: 3px; position: relative; cursor: pointer; }
+.progress-fill { height: 100%; background: var(--primary); border-radius: 3px; width: 0%; position: relative; transition: width .1s linear; }
+.progress-fill::after { content: ''; position: absolute; right: -6px; top: 50%; transform: translateY(-50%); width: 12px; height: 12px; background: #fff; border-radius: 50%; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
+.time-label { font-size: .72rem; color: #94a3b8; font-variant-numeric: tabular-nums; min-width: 32px; }
+.player-controls { display: flex; align-items: center; justify-content: center; gap: 16px; }
+.ctrl-btn { color: #94a3b8; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: all .15s; }
+.ctrl-btn:hover { color: #fff; }
+.ctrl-btn.active { color: var(--accent); }
+.ctrl-btn svg { width: 20px; height: 20px; }
+.ctrl-btn.play-btn { width: 52px; height: 52px; background: var(--primary); color: #fff; }
+.ctrl-btn.play-btn:hover { background: var(--primary-dark); color: #fff; }
+.ctrl-btn.play-btn svg { width: 24px; height: 24px; }
+.volume-wrap { display: flex; align-items: center; gap: 6px; }
+.volume-wrap svg { width: 18px; height: 18px; color: #94a3b8; }
+.volume-slider { -webkit-appearance: none; width: 70px; height: 4px; background: rgba(255,255,255,.2); border-radius: 2px; outline: none; }
+.volume-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; background: #fff; border-radius: 50%; cursor: pointer; }
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 300; display: none; align-items: center; justify-content: center; padding: 20px; }
+.modal-overlay.show { display: flex; }
+.modal-box { background: var(--surface); border-radius: 16px; padding: 24px; width: 100%; max-width: 360px; }
+.modal-box h3 { font-size: 1.05rem; margin-bottom: 16px; text-align: center; }
+.modal-box input { width: 100%; padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px; font-size: 16px; margin-bottom: 12px; outline: none; transition: border-color .15s; }
+.modal-box input:focus { border-color: var(--primary); }
+.modal-box .modal-btns { display: flex; gap: 10px; }
+.modal-box .modal-btns button { flex: 1; padding: 12px; border-radius: 10px; font-size: .92rem; font-weight: 500; }
+.btn-cancel { background: var(--bg); color: var(--text-secondary); }
+.btn-confirm { background: var(--primary); color: #fff; }
+.guide-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 300; display: none; align-items: flex-end; justify-content: center; }
+.guide-overlay.show { display: flex; }
+.guide-panel { background: var(--surface); border-radius: 20px 20px 0 0; width: 100%; max-width: 720px; max-height: 80vh; overflow-y: auto; padding: 20px; animation: slideUp .25s ease; }
+@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+.guide-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.guide-header h3 { font-size: 1.1rem; }
+.guide-close { width: 36px; height: 36px; border-radius: 50%; background: var(--bg); display: flex; align-items: center; justify-content: center; color: var(--text-secondary); }
+.guide-step { display: flex; gap: 12px; margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+.guide-step:last-child { border-bottom: none; }
+.step-num { width: 28px; height: 28px; background: var(--primary); color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: .8rem; font-weight: 700; flex-shrink: 0; }
+.step-content h4 { font-size: .92rem; margin-bottom: 4px; }
+.step-content p { font-size: .85rem; color: var(--text-secondary); line-height: 1.6; }
+.toast { position: fixed; top: 70px; left: 50%; transform: translateX(-50%) translateY(-20px); background: rgba(15,23,42,.9); color: #fff; padding: 10px 20px; border-radius: 10px; font-size: .85rem; z-index: 400; opacity: 0; transition: all .25s; pointer-events: none; white-space: nowrap; }
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+@media (max-width: 480px) {
+  .container { padding: 12px; }
+  .header { padding: 10px 12px; }
+  .header-title { font-size: 1rem; }
+  .upload-zone { padding: 24px 16px; }
+  .audio-item { padding: 10px 12px; gap: 10px; }
+  .audio-item .play-mini { width: 40px; height: 40px; }
+  .volume-wrap { display: none; }
+  .player-controls { gap: 12px; }
+}
+</style>
+</head>
+<body>
+<header class="header" id="header">
+  <div class="header-title" id="titleArea">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+    门店音频播放器
+  </div>
+  <div class="header-actions">
+    <span class="admin-badge" id="adminBadge" style="display:none">管理员</span>
+    <button class="icon-btn" id="guideBtn" title="操作指引">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    </button>
+  </div>
+</header>
+<div class="bt-banner">
+  <div class="bt-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6.5 6.5 17.5 17.5 12 23 12 1 17.5 6.5 6.5 17.5"/></svg></div>
+  <div class="bt-text"><strong>请先连接蓝牙音响</strong><span>手机设置 → 蓝牙 → 搜索 SAST-XXXX 配对</span></div>
+</div>
+<div class="update-bar">
+  <span id="updateTime">正在加载音频列表...</span>
+  <button class="refresh-btn" id="refreshBtn">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+    刷新列表
+  </button>
+</div>
+<main class="container">
+  <div class="admin-section">
+    <div class="upload-zone" id="uploadZone">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      <div class="upload-title">上传音频到本地播放</div>
+      <div class="upload-hint">仅管理员可见 · 支持 MP3 / WAV / M4A / OGG · 多选</div>
+    </div>
+    <input type="file" id="fileInput" accept="audio/*" multiple>
+  </div>
+  <div class="section-title"><span>播放列表</span><span class="count-badge" id="countBadge">0 首</span></div>
+  <div class="audio-list" id="audioList">
+    <div class="loading-state" id="loadingState"><div class="spinner"></div><p>正在从总部获取音频列表...</p></div>
+  </div>
+</main>
+<div class="player-bar" id="playerBar">
+  <div class="player-inner">
+    <div class="player-track-info">
+      <span class="track-name" id="trackName">未选择音频</span>
+      <span class="track-time" id="trackTime">00:00 / 00:00</span>
+    </div>
+    <div class="progress-wrap">
+      <span class="time-label" id="currentTime">0:00</span>
+      <div class="progress-bar" id="progressBar"><div class="progress-fill" id="progressFill"></div></div>
+      <span class="time-label" id="durationTime">0:00</span>
+    </div>
+    <div class="player-controls">
+      <button class="ctrl-btn" id="modeBtn" title="循环模式"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg></button>
+      <button class="ctrl-btn" id="prevBtn" title="上一首"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg></button>
+      <button class="ctrl-btn play-btn" id="playBtn" title="播放/暂停">
+        <svg id="playIcon" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        <svg id="pauseIcon" viewBox="0 0 24 24" fill="currentColor" style="display:none"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+      </button>
+      <button class="ctrl-btn" id="nextBtn" title="下一首"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/></svg></button>
+      <div class="volume-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+        <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100" value="80">
+      </div>
+    </div>
+  </div>
+</div>
+<div class="modal-overlay" id="pwdOverlay">
+  <div class="modal-box">
+    <h3>管理员验证</h3>
+    <input type="password" id="pwdInput" placeholder="请输入管理员密码">
+    <div class="modal-btns">
+      <button class="btn-cancel" id="pwdCancel">取消</button>
+      <button class="btn-confirm" id="pwdConfirm">确认</button>
+    </div>
+  </div>
+</div>
+<div class="guide-overlay" id="guideOverlay">
+  <div class="guide-panel">
+    <div class="guide-header"><h3>门店音频播放操作指引</h3>
+      <button class="guide-close" id="guideClose"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="guide-step"><div class="step-num">1</div><div class="step-content"><h4>连接蓝牙音响</h4><p>手机下拉通知栏 → 长按蓝牙进入设置 → 搜索并点击「SAST-XXXX」完成配对。PC端请在系统蓝牙设置中连接。</p></div></div>
+    <div class="guide-step"><div class="step-num">2</div><div class="step-content"><h4>等待音频列表加载</h4><p>打开本页面后自动从总部拉取最新音频列表。如需更新，点击顶部「刷新列表」即可获取总部最新上传的音频。</p></div></div>
+    <div class="guide-step"><div class="step-num">3</div><div class="step-content"><h4>开始播放</h4><p>在列表中点击对应音频即可播放。底部控制栏可调节进度、音量，点击循环按钮可切换单曲循环/列表循环/随机播放。</p></div></div>
+    <div class="guide-step"><div class="step-num">4</div><div class="step-content"><h4>下载音频到本地</h4><p>点击列表中音频右侧的下载图标，可将音频文件保存到本设备。</p></div></div>
+    <div class="guide-step"><div class="step-num">5</div><div class="step-content"><h4>管理员模式</h4><p>长按顶部标题栏3秒（PC端双击标题），输入管理员密码后可解锁本地上传功能，用于临时测试播放。再次长按标题可退出。</p></div></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+const CONFIG = {
+  remoteJsUrl: 'https://cdn.jsdelivr.net/gh/ruie6666/audio-player@main/audio-list.json',
+  adminPassword: '123456'
+};
+const DEFAULT_LIST = [
+  {"name": "10月档期（上半）常规音频", "url": "https://gitee.com/weisixu/audio-warehouse/raw/master/10月档期（上半）-周四至周日每日9点-20点（常规音频）.mp3"},
+  {"name": "测试", "url": "https://gitee.com/weisixu/audio-warehouse/raw/master/Andrew Prahlow - Outer Wilds.mp3"},
+  {"name": "10月档期（下半）常规音频", "url": "https://gitee.com/weisixu/audio-warehouse/raw/master/10月档期（下半）-周四至周日每日9点-20点（常规音频）.mp3"},
+  {"name": "10月鲜食音频-早7点至9点", "url": "https://gitee.com/weisixu/audio-warehouse/raw/master/10月鲜食音频-每日7点-9点（常规音频）.mp3"}
+];
+let playlist=[],currentIndex=-1,isPlaying=false,playMode='loop';
+let audio=new Audio();audio.volume=0.8;let isAdmin=false;
+const $=id=>document.getElementById(id);
+async function loadRemoteList() {
+  $('loadingState').style.display = 'block';
+  $('updateTime').textContent = '正在连接总部...';
+  try {
+    const res = await fetch(CONFIG.remoteJsUrl + '?t=' + Date.now());
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const list = await res.json();
+    if (!Array.isArray(list) || !list.length) throw new Error('空列表');
+    playlist = list.map(item => ({
+      id: Date.now()+Math.random(), name: item.name, url: item.url,
+      remote: true, duration: 0, file: null
+    }));
+    playlist.forEach(item => {
+      const a = new Audio(); a.src = item.url;
+      a.onloadedmetadata = () => { item.duration = a.duration; renderList(); };
+    });
+    $('updateTime').textContent = '总部在线 · 更新于 ' + new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'});
+    renderList();
+  } catch(e) {
+    useDefaultList();
+  }
+}
+$('refreshBtn').addEventListener('click', () => { showToast('正在刷新...'); function useDefaultList() {
+  playlist = DEFAULT_LIST.map(item => ({
+    id: Date.now()+Math.random(), name: item.name, url: item.url,
+    remote: true, duration: 0, file: null
+  }));
+  playlist.forEach(item => {
+    const a = new Audio(); a.src = item.url;
+    a.onloadedmetadata = () => { item.duration = a.duration; renderList(); };
+  });
+  $('updateTime').textContent = '本地模式（点击刷新重试连接总部）';
+  renderList();
+}
+loadRemoteList(); });
+let pressTimer;
+$('titleArea').addEventListener('touchstart', () => { pressTimer = setTimeout(() => { if (!isAdmin) $('pwdOverlay').classList.add('show'); else logoutAdmin(); }, 800); });
+$('titleArea').addEventListener('touchend', () => clearTimeout(pressTimer));
+$('titleArea').addEventListener('dblclick', () => { if (!isAdmin) $('pwdOverlay').classList.add('show'); else logoutAdmin(); });
+function logoutAdmin() {
+  isAdmin = false; document.body.classList.remove('is-admin'); $('adminBadge').style.display = 'none';
+  playlist = playlist.filter(i => i.remote); renderList(); showToast('已退出管理员模式');
+}
+$('pwdCancel').addEventListener('click', () => { $('pwdOverlay').classList.remove('show'); $('pwdInput').value = ''; });
+$('pwdConfirm').addEventListener('click', () => {
+  if ($('pwdInput').value === CONFIG.adminPassword) {
+    isAdmin = true; document.body.classList.add('is-admin'); $('adminBadge').style.display = '';
+    $('pwdOverlay').classList.remove('show'); $('pwdInput').value = ''; showToast('管理员模式已开启');
+  } else { showToast('密码错误'); $('pwdInput').value = ''; }
+});
+const uploadZone = $('uploadZone'), fileInput = $('fileInput');
+uploadZone.addEventListener('click', () => fileInput.click());
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('dragover'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+uploadZone.addEventListener('drop', e => { e.preventDefault(); uploadZone.classList.remove('dragover'); handleFiles(e.dataTransfer.files); });
+fileInput.addEventListener('change', e => { handleFiles(e.target.files); fileInput.value = ''; });
+function handleFiles(files) {
+  const af = Array.from(files).filter(f => f.type.startsWith('audio/') || /\.(mp3|wav|m4a|ogg|aac|flac)$/i.test(f.name));
+  if (!af.length) { showToast('请选择音频文件'); return; }
+  const items = af.map(f => ({ id: Date.now()+Math.random(), name: f.name.replace(/\.[^.]+$/,''), file: f, url: URL.createObjectURL(f), remote: false, duration: 0 }));
+  playlist = [...items, ...playlist];
+  items.forEach(item => { const a = new Audio(); a.src = item.url; a.onloadedmetadata = () => { item.duration = a.duration; renderList(); }; });
+  renderList(); showToast('已添加 ' + af.length + ' 个音频');
+}
+function renderList() {
+  countBadge.textContent = playlist.length + ' 首';
+  audioList.querySelectorAll('.audio-item').forEach(el => el.remove());
+  $('loadingState').style.display = 'none';
+  if (!playlist.length) {
+    const e = document.createElement('div'); e.className = 'empty-state';
+    e.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg><p>暂无音频文件</p>';
+    audioList.appendChild(e); return;
+  }
+  playlist.forEach((item, idx) => {
+    const div = document.createElement('div');
+    div.className = 'audio-item' + (idx===currentIndex && isPlaying ? ' playing' : '');
+    div.innerHTML =
+      '<button class="play-mini" data-idx="'+idx+'">'+
+        (idx===currentIndex&&isPlaying
+          ? '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>'
+          : '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>')+
+      '</button>'+
+      '<div class="audio-info"><div class="audio-name">'+escapeHtml(item.name)+'</div>'+
+      '<div class="audio-meta">'+formatTime(item.duration)+(item.file?' · '+formatSize(item.file.size):'')+'</div></div>'+
+      '<div class="audio-actions">'+
+        '<button class="download-btn" data-download="'+idx+'" title="下载"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>'+
+        (item.remote?'':'<button class="delete-btn" data-delete="'+idx+'" title="删除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>')+
+      '</div>';
+    audioList.appendChild(div);
+  });
+  audioList.querySelectorAll('.play-mini').forEach(b => b.addEventListener('click', () => playAt(+b.dataset.idx)));
+  audioList.querySelectorAll('[data-download]').forEach(b => b.addEventListener('click', () => downloadTrack(+b.dataset.download)));
+  audioList.querySelectorAll('[data-delete]').forEach(b => b.addEventListener('click', () => deleteTrack(+b.dataset.delete)));
+}
+function playAt(idx) {
+  if (idx<0||idx>=playlist.length) return;
+  currentIndex = idx; audio.src = playlist[idx].url; audio.play(); isPlaying = true;
+  playerBar.classList.add('active'); trackName.textContent = playlist[idx].name; renderList();
+}
+audio.addEventListener('play', () => { isPlaying=true; playIcon.style.display='none'; pauseIcon.style.display=''; renderList(); });
+audio.addEventListener('pause', () => { isPlaying=false; playIcon.style.display=''; pauseIcon.style.display='none'; renderList(); });
+audio.addEventListener('timeupdate', updateProgress);
+audio.addEventListener('loadedmetadata', updateProgress);
+audio.addEventListener('ended', handleEnded);
+playBtn.addEventListener('click', () => { if (currentIndex===-1) { if (playlist.length) playAt(0); else showToast('暂无可播放音频'); return; } audio.paused ? audio.play() : audio.pause(); });
+prevBtn.addEventListener('click', () => { if(!playlist.length)return; let i=currentIndex-1; if(i<0)i=playlist.length-1; playAt(i); });
+nextBtn.addEventListener('click', () => { if(!playlist.length)return; let i=currentIndex+1; if(i>=playlist.length)i=0; playAt(i); });
+modeBtn.addEventListener('click', () => {
+  if (playMode==='loop'){playMode='single';modeBtn.classList.add('active');showToast('单曲循环');}
+  else if(playMode==='single'){playMode='shuffle';modeBtn.classList.add('active');showToast('随机播放');}
+  else{playMode='loop';modeBtn.classList.remove('active');showToast('列表循环');}
+});
+function handleEnded() {
+  if (playMode==='single'){audio.currentTime=0;audio.play();}
+  else if(playMode==='shuffle'){if(playlist.length>1){let i;do{i=Math.floor(Math.random()*playlist.length);}while(i===currentIndex);playAt(i);}else{audio.currentTime=0;audio.play();}}
+  else{let i=currentIndex+1;if(i>=playlist.length)i=0;playAt(i);}
+}
+function updateProgress() {
+  if (!audio.duration) return;
+  progressFill.style.width=(audio.currentTime/audio.duration*100)+'%';
+  currentTimeEl.textContent=formatTime(audio.currentTime);
+  durationTimeEl.textContent=formatTime(audio.duration);
+  trackTime.textContent=formatTime(audio.currentTime)+' / '+formatTime(audio.duration);
+}
+progressBar.addEventListener('click', e => { if (!audio.duration) return; const r=progressBar.getBoundingClientRect(); audio.currentTime=((e.clientX-r.left)/r.width)*audio.duration; });
+volumeSlider.addEventListener('input', () => audio.volume=volumeSlider.value/100);
+async function downloadTrack(idx) {
+  const item=playlist[idx]; if(!item)return;
+  try {
+    showToast('正在下载...');
+    const res=await fetch(item.url); const blob=await res.blob();
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a'); a.href=url; a.download=item.name+(item.file?'':'.mp3');
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url); showToast('已开始下载');
+  } catch(e) {
+    const a=document.createElement('a'); a.href=item.url; a.target='_blank';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    showToast('请在新窗口保存音频');
+  }
+}
+function deleteTrack(idx) {
+  const item=playlist[idx]; if(!item)return;
+  if(idx===currentIndex){audio.pause();audio.src='';currentIndex=-1;playerBar.classList.remove('active');}
+  else if(idx<currentIndex)currentIndex--;
+  if(item.url.startsWith('blob:'))URL.revokeObjectURL(item.url);
+  playlist.splice(idx,1); renderList(); showToast('已删除');
+}
+$('guideBtn').addEventListener('click', () => $('guideOverlay').classList.add('show'));
+$('guideClose').addEventListener('click', () => $('guideOverlay').classList.remove('show'));
+$('guideOverlay').addEventListener('click', e => { if(e.target===$('guideOverlay'))$('guideOverlay').classList.remove('show'); });
+let toastTimer;
+function showToast(msg) { toast.textContent=msg; toast.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>toast.classList.remove('show'),2000); }
+function formatTime(sec){if(!sec||isNaN(sec))return'0:00';const m=Math.floor(sec/60),s=Math.floor(sec%60);return m+':'+(s<10?'0':'')+s;}
+function formatSize(b){if(b<1024)return b+' B';if(b<1048576)return(b/1024).toFixed(1)+' KB';return(b/1048576).toFixed(1)+' MB';}
+function escapeHtml(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML;}
+function useDefaultList() {
+  playlist = DEFAULT_LIST.map(item => ({
+    id: Date.now()+Math.random(), name: item.name, url: item.url,
+    remote: true, duration: 0, file: null
+  }));
+  playlist.forEach(item => {
+    const a = new Audio(); a.src = item.url;
+    a.onloadedmetadata = () => { item.duration = a.duration; renderList(); };
+  });
+  $('updateTime').textContent = '本地模式（点击刷新重试连接总部）';
+  renderList();
+}
+loadRemoteList();
+</script>
+</body>
+</html>
