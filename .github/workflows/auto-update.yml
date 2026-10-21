@@ -1,0 +1,44 @@
+name: 自动更新音频列表
+
+on:
+  push:
+    paths:
+      - '**.mp3'
+  workflow_dispatch:
+
+jobs:
+  update-audio-list:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 扫描mp3文件并生成列表
+        run: |
+          python3 << 'EOF'
+          import os, json, glob
+
+          audio_files = sorted(glob.glob('*.mp3'))
+          audio_list = []
+          for f in audio_files:
+            name = os.path.splitext(f)[0]
+            audio_list.append({
+              "name": name,
+              "url": "./" + f
+            })
+
+          with open('audio-list.json', 'w', encoding='utf-8') as fp:
+            json.dump(audio_list, fp, ensure_ascii=False, indent=2)
+
+          print(f"找到 {len(audio_files)} 个音频文件:")
+          for item in audio_list:
+            print(f"  - {item['name']}")
+          EOF
+
+      - name: 提交更新
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add audio-list.json
+          git diff --staged --quiet || git commit -m "自动更新音频列表"
+          git push
