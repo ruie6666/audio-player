@@ -1,6 +1,6 @@
 [
-  {"name": "测试1", "url": "https://gitee.com/weisixu/audio-warehouse/raw/master/Andrew Prahlow - Outer Wilds.mp3"},
-  {"name": "测试2", "url": "https://gitee.com/weisixu/audio-warehouse/raw/master/Little West - Lost In My View.mp3"},
-  {"name": "暂无音频", "url": "https://gitee.com/weisixu/audio-warehouse/raw/master/音频文件全名称填写"},
-  {"name": "暂无音频", "url": "https://gitee.com/weisixu/audio-warehouse/raw/master/音频文件全名称填写"}
+  {"name": "测试1", "url": ".Andrew Prahlow - Outer Wilds.mp3"},
+  {"name": "测试2", "url": ".Little West - Lost In My View.mp3"},
+  {"name": "暂无音频", "url": ".音频文件全名称填写"},
+  {"name": "暂无音频", "url": ".音频文件全名称填写"}
 ]
