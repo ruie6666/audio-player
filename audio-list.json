@@ -1,6 +1,18 @@
 [
-  {"name": "测试1", "url": "./Andrew Prahlow - Outer Wilds.mp3"},
-  {"name": "测试2", "url": "./Little West - Lost In My View.mp3"},
-  {"name": "暂无音频", "url": "./音频文件全名称填写"},
-  {"name": "暂无音频", "url": "./音频文件全名称填写"}
+  {
+    "name": "和田光司 - The Biggest Dreamer",
+    "url": "./和田光司 - The Biggest Dreamer.mp3"
+  },
+  {
+    "name": "大宽 - 大款",
+    "url": "./大宽 - 大款.mp3"
+  },
+  {
+    "name": "毛不易 - 无名的人",
+    "url": "./毛不易 - 无名的人.mp3"
+  },
+  {
+    "name": "霍尊 - 不死鸟",
+    "url": "./霍尊 - 不死鸟.mp3"
+  }
 ]
