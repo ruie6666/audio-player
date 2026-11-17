@@ -332,10 +332,10 @@ function renderList() {
 function playAt(idx) {
   if (idx<0||idx>=playlist.length) return;
   currentIndex = idx; audio.src = playlist[idx].url; audio.play(); isPlaying = true;
-  playerBar.classList.add('active'); trackName.textContent = playlist[idx].name; renderList();
+  playerBar.classList.add('active'); trackName.textContent = playlist[idx].name; renderList(); syncMedia();
 }
-audio.addEventListener('play', () => { isPlaying=true; playIcon.style.display='none'; pauseIcon.style.display=''; renderList(); });
-audio.addEventListener('pause', () => { isPlaying=false; playIcon.style.display=''; pauseIcon.style.display='none'; renderList(); });
+audio.addEventListener('play', () => { isPlaying=true; playIcon.style.display='none'; pauseIcon.style.display=''; renderList(); syncMedia(); });
+audio.addEventListener('pause', () => { isPlaying=false; playIcon.style.display=''; pauseIcon.style.display='none'; renderList(); syncMedia(); });
 audio.addEventListener('timeupdate', updateProgress);
 audio.addEventListener('loadedmetadata', updateProgress);
 audio.addEventListener('ended', handleEnded);
@@ -352,6 +352,23 @@ function handleEnded() {
   else if(playMode==='shuffle'){if(playlist.length>1){let i;do{i=Math.floor(Math.random()*playlist.length);}while(i===currentIndex);playAt(i);}else{audio.currentTime=0;audio.play();}}
   else{let i=currentIndex+1;if(i>=playlist.length)i=0;playAt(i);}
 }
+/* ==== 通知栏 / 锁屏媒体控制同步（仅在 App 内生效，网页端自动跳过） ==== */
+function syncMedia() {
+  try {
+    if (window.AndroidMedia && window.AndroidMedia.update) {
+      const name = (currentIndex >= 0 && playlist[currentIndex]) ? playlist[currentIndex].name : '天天音乐';
+      window.AndroidMedia.update(name, !!isPlaying);
+    }
+  } catch (e) {}
+}
+window.__nativePlay = () => {
+  if (currentIndex === -1) { playlist.length ? playAt(0) : showToast('暂无可播放音频'); }
+  else if (audio.paused) { audio.play(); }
+};
+window.__nativePause = () => { if (!audio.paused) audio.pause(); };
+window.__nativeNext = () => { if (!playlist.length) return; let i = currentIndex + 1; if (i >= playlist.length) i = 0; playAt(i); };
+window.__nativePrev = () => { if (!playlist.length) return; let i = currentIndex - 1; if (i < 0) i = playlist.length - 1; playAt(i); };
+
 function updateProgress() {
   if (!audio.duration) return;
   progressFill.style.width=(audio.currentTime/audio.duration*100)+'%';
