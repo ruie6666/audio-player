@@ -219,11 +219,18 @@ body:not(.is-admin) .delete-btn { display: none; }
 <div class="toast" id="toast"></div>
 <script>
 const CONFIG = {
-  remoteJsUrl: './audio-list.json',
+  remoteJsUrl: 'https://ruie6666.github.io/audio-player/audio-list.json',
+  assetBase: 'https://ruie6666.github.io/audio-player/',
   adminPassword: '123456'
 };
+// 把列表里的相对路径补成完整网址，App 内也能正常播放
+function resolveUrl(u) {
+  if (!u) return u;
+  if (u.indexOf('./') === 0) return CONFIG.assetBase + u.slice(2);
+  return u;
+}
 const DEFAULT_LIST = [
-  {"name": "10月档期（下半）常规音频", "url": "https://gitee.com/weisixu/audio-warehouse/raw/master/10月档期（下半）-周四至周日每日9点-20点（常规音频）.mp3"},
+  {"name": "11月上半室内音频", "url": "./11月上半室内音频_压缩.mp3"}
 ];
 let playlist=[],currentIndex=-1,isPlaying=false,playMode='loop';
 let audio=new Audio();audio.volume=0.8;let isAdmin=false;
@@ -237,7 +244,7 @@ async function loadRemoteList() {
     const list = await res.json();
     if (!Array.isArray(list) || !list.length) throw new Error('空列表');
     playlist = list.map(item => ({
-      id: Date.now()+Math.random(), name: item.name, url: item.url,
+      id: Date.now()+Math.random(), name: item.name, url: resolveUrl(item.url),
       remote: true, duration: 0, file: null
     }));
     playlist.forEach(item => {
