@@ -92,14 +92,14 @@ jobs:
       - name: 整理安装包
         run: |
           mkdir -p out
-          cp android/app/build/outputs/apk/debug/app-debug.apk "out/天天音乐.apk"
+          cp android/app/build/outputs/apk/debug/app-debug.apk "out/TianTianMusic.apk"
           ls -lh out
 
       - name: 上传安装包
         uses: actions/upload-artifact@v4
         with:
           name: store-audio-player-apk
-          path: out/天天音乐.apk
+          path: out/TianTianMusic.apk
           retention-days: 30
 
       - name: 发布到 Release（方便手机直接下载）
@@ -108,6 +108,6 @@ jobs:
           tag_name: v1.0.${{ github.run_number }}
           name: 天天音乐 v1.0.${{ github.run_number }}
           body: 门店音频播放器安卓安装包，下载后安装即可使用。
-          files: out/天天音乐.apk
+          files: out/TianTianMusic.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
