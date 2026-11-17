@@ -1,0 +1,113 @@
+name: 打包安卓安装包
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'index.html'
+      - 'patch_android.py'
+      - '.github/workflows/build-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@v4
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 安装 JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: 生成工程配置并收集网页资源
+        run: |
+          cat > package.json << 'EOF'
+          {
+            "name": "store-audio-player",
+            "version": "1.0.0",
+            "private": true,
+            "dependencies": {
+              "@capacitor/android": "^6.1.0",
+              "@capacitor/core": "^6.1.0"
+            },
+            "devDependencies": {
+              "@capacitor/cli": "^6.1.0"
+            }
+          }
+          EOF
+          cat > capacitor.config.json << 'EOF'
+          {
+            "appId": "com.tiantian.audio",
+            "appName": "天天音乐",
+            "webDir": "www",
+            "android": {
+              "allowMixedContent": true
+            }
+          }
+          EOF
+          mkdir -p www
+          cp index.html www/
+          echo "已收集网页资源（音频走远程加载，不打包进安装包）:"
+          ls -lh www
+
+      - name: 安装依赖
+        run: npm install --no-audit --no-fund
+
+      - name: 生成安卓工程
+        run: npx cap add android
+
+      - name: 打补丁（权限 / 前台服务 / 屏幕常亮）
+        run: python3 patch_android.py
+
+      - name: 生成应用图标与启动图
+        run: |
+          if [ -f icon.png ]; then
+            mkdir -p assets
+            cp icon.png assets/icon.png
+            npx --yes @capacitor/assets generate --android
+          else
+            echo "未找到 icon.png，使用默认图标"
+          fi
+
+      - name: 同步网页资源到工程
+        run: npx cap sync android
+
+      - name: 编译 APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: 整理安装包
+        run: |
+          mkdir -p out
+          cp android/app/build/outputs/apk/debug/app-debug.apk "out/天天音乐.apk"
+          ls -lh out
+
+      - name: 上传安装包
+        uses: actions/upload-artifact@v4
+        with:
+          name: store-audio-player-apk
+          path: out/天天音乐.apk
+          retention-days: 30
+
+      - name: 发布到 Release（方便手机直接下载）
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: 天天音乐 v1.0.${{ github.run_number }}
+          body: 门店音频播放器安卓安装包，下载后安装即可使用。
+          files: out/天天音乐.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
