@@ -109,7 +109,7 @@ public class MainActivity extends BridgeActivity {
     }
 
     @Override
-    protected void onDestroy() {
+    public void onDestroy() {
         if (mediaReceiver != null) {
             try {
                 unregisterReceiver(mediaReceiver);
