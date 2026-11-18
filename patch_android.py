@@ -87,6 +87,10 @@ public class MainActivity extends BridgeActivity {
                     js = "window.__nativePrev&&window.__nativePrev()";
                 } else if (PlaybackService.CMD_CYCLE.equals(cmd)) {
                     js = "window.__nativeCycle&&window.__nativeCycle()";
+                } else if (PlaybackService.CMD_MODE_SINGLE.equals(cmd)) {
+                    js = "window.__nativeSetMode&&window.__nativeSetMode('single')";
+                } else if (PlaybackService.CMD_MODE_LOOP.equals(cmd)) {
+                    js = "window.__nativeSetMode&&window.__nativeSetMode('loop')";
                 } else {
                     return;
                 }
@@ -154,6 +158,8 @@ public class PlaybackService extends Service {
     public static final String CMD_NEXT = "next";
     public static final String CMD_PREV = "prev";
     public static final String CMD_CYCLE = "cycle";
+    public static final String CMD_MODE_SINGLE = "mode_single";
+    public static final String CMD_MODE_LOOP = "mode_loop";
 
     private static final String CHANNEL_ID = "audio_playback";
     private static final int NOTIF_ID = 1001;
@@ -302,8 +308,10 @@ public class PlaybackService extends Service {
                 .setOnlyAlertOnce(true)
                 .setVisibility(Notification.VISIBILITY_PUBLIC);
 
+        // 顺序：循环 -> 播放/暂停 -> 下一首 -> 上一首
+        // 普通通知折叠时显示前 3 个，所以"循环"排第一，下拉即可看到
         b.addAction(new Notification.Action.Builder(
-                android.R.drawable.ic_media_previous, "上一首", commandIntent(CMD_PREV, 11)).build());
+                android.R.drawable.ic_menu_rotate, modeLabel(), commandIntent(CMD_CYCLE, 14)).build());
         b.addAction(new Notification.Action.Builder(
                 isPlaying ? android.R.drawable.ic_media_pause : android.R.drawable.ic_media_play,
                 isPlaying ? "暂停" : "播放",
@@ -311,13 +319,10 @@ public class PlaybackService extends Service {
         b.addAction(new Notification.Action.Builder(
                 android.R.drawable.ic_media_next, "下一首", commandIntent(CMD_NEXT, 13)).build());
         b.addAction(new Notification.Action.Builder(
-                android.R.drawable.ic_menu_rotate, modeLabel(), commandIntent(CMD_CYCLE, 14)).build());
+                android.R.drawable.ic_media_previous, "上一首", commandIntent(CMD_PREV, 11)).build());
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP && mediaSession != null) {
-            b.setStyle(new Notification.MediaStyle()
-                    .setMediaSession(mediaSession.getSessionToken())
-                    .setShowActionsInCompactView(0, 1, 2));
-        }
+        // 注意：不使用 MediaStyle。Android 12+ 会把 MediaStyle 通知收进系统媒体控制卡片，
+        // 而该卡片固定只渲染 上一首/播放/下一首 三个按钮，第四个按钮会被丢弃。
 
         return b.build();
     }
