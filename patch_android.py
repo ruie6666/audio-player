@@ -85,6 +85,8 @@ public class MainActivity extends BridgeActivity {
                     js = "window.__nativeNext&&window.__nativeNext()";
                 } else if (PlaybackService.CMD_PREV.equals(cmd)) {
                     js = "window.__nativePrev&&window.__nativePrev()";
+                } else if (PlaybackService.CMD_CYCLE.equals(cmd)) {
+                    js = "window.__nativeCycle&&window.__nativeCycle()";
                 } else {
                     return;
                 }
@@ -119,11 +121,11 @@ public class MainActivity extends BridgeActivity {
         super.onDestroy();
     }
 
-    /** 网页调用：同步当前曲目与播放状态到系统媒体控制 */
+    /** 网页调用：同步当前曲目、播放状态与循环模式到系统媒体控制 */
     public static class MediaBridge {
         @JavascriptInterface
-        public void update(String title, boolean playing) {
-            PlaybackService.update(title, playing);
+        public void update(String title, boolean playing, String mode) {
+            PlaybackService.update(title, playing, mode);
         }
     }
 }
@@ -151,6 +153,7 @@ public class PlaybackService extends Service {
     public static final String CMD_PAUSE = "pause";
     public static final String CMD_NEXT = "next";
     public static final String CMD_PREV = "prev";
+    public static final String CMD_CYCLE = "cycle";
 
     private static final String CHANNEL_ID = "audio_playback";
     private static final int NOTIF_ID = 1001;
@@ -159,6 +162,7 @@ public class PlaybackService extends Service {
 
     private MediaSession mediaSession;
     private String currentTitle = "天天音乐";
+    private String currentMode = "loop";
     private boolean isPlaying = false;
 
     @Override
@@ -203,14 +207,23 @@ public class PlaybackService extends Service {
     }
 
     /** 网页调用，更新通知与媒体会话 */
-    public static void update(String title, boolean playing) {
+    public static void update(String title, boolean playing, String mode) {
         PlaybackService s = instance;
         if (s == null) return;
         if (title != null && title.length() > 0) {
             s.currentTitle = title;
         }
+        if (mode != null && mode.length() > 0) {
+            s.currentMode = mode;
+        }
         s.isPlaying = playing;
         s.refresh();
+    }
+
+    private String modeLabel() {
+        if ("single".equals(currentMode)) return "单曲循环";
+        if ("shuffle".equals(currentMode)) return "随机播放";
+        return "列表循环";
     }
 
     @Override
@@ -282,6 +295,7 @@ public class PlaybackService extends Service {
 
         b.setContentTitle("天天音乐")
                 .setContentText(currentTitle)
+                .setSubText(modeLabel())
                 .setSmallIcon(android.R.drawable.ic_media_play)
                 .setContentIntent(contentIntent())
                 .setOngoing(isPlaying)
@@ -296,6 +310,8 @@ public class PlaybackService extends Service {
                 commandIntent(isPlaying ? CMD_PAUSE : CMD_PLAY, 12)).build());
         b.addAction(new Notification.Action.Builder(
                 android.R.drawable.ic_media_next, "下一首", commandIntent(CMD_NEXT, 13)).build());
+        b.addAction(new Notification.Action.Builder(
+                android.R.drawable.ic_menu_rotate, modeLabel(), commandIntent(CMD_CYCLE, 14)).build());
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP && mediaSession != null) {
             b.setStyle(new Notification.MediaStyle()

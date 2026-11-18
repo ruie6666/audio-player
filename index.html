@@ -346,6 +346,7 @@ modeBtn.addEventListener('click', () => {
   if (playMode==='loop'){playMode='single';modeBtn.classList.add('active');showToast('单曲循环');}
   else if(playMode==='single'){playMode='shuffle';modeBtn.classList.add('active');showToast('随机播放');}
   else{playMode='loop';modeBtn.classList.remove('active');showToast('列表循环');}
+  syncMedia();
 });
 function handleEnded() {
   if (playMode==='single'){audio.currentTime=0;audio.play();}
@@ -357,7 +358,7 @@ function syncMedia() {
   try {
     if (window.AndroidMedia && window.AndroidMedia.update) {
       const name = (currentIndex >= 0 && playlist[currentIndex]) ? playlist[currentIndex].name : '天天音乐';
-      window.AndroidMedia.update(name, !!isPlaying);
+      window.AndroidMedia.update(name, !!isPlaying, playMode);
     }
   } catch (e) {}
 }
@@ -368,6 +369,7 @@ window.__nativePlay = () => {
 window.__nativePause = () => { if (!audio.paused) audio.pause(); };
 window.__nativeNext = () => { if (!playlist.length) return; let i = currentIndex + 1; if (i >= playlist.length) i = 0; playAt(i); };
 window.__nativePrev = () => { if (!playlist.length) return; let i = currentIndex - 1; if (i < 0) i = playlist.length - 1; playAt(i); };
+window.__nativeCycle = () => { modeBtn.click(); };
 
 function updateProgress() {
   if (!audio.duration) return;
