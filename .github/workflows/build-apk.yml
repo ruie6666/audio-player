@@ -51,6 +51,10 @@ jobs:
             "appId": "com.tiantian.audio",
             "appName": "天天音乐",
             "webDir": "www",
+            "server": {
+              "url": "https://ruie6666.github.io/audio-player/",
+              "errorPath": "offline.html"
+            },
             "android": {
               "allowMixedContent": true
             }
@@ -58,7 +62,33 @@ jobs:
           EOF
           mkdir -p www
           cp index.html www/
-          echo "已收集网页资源（音频走远程加载，不打包进安装包）:"
+          cat > www/offline.html << 'EOF'
+          <!DOCTYPE html>
+          <html lang="zh-CN">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>网络未连接</title>
+            <style>
+              html, body { height: 100%; margin: 0; }
+              body {
+                display: flex; flex-direction: column;
+                align-items: center; justify-content: center;
+                background: #f7f7f6; color: #2b2b2b;
+                font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+                text-align: center; padding: 0 32px;
+              }
+              h1 { font-size: 20px; font-weight: 600; margin: 0 0 12px; }
+              p { font-size: 14px; line-height: 1.7; color: #6b6b6b; margin: 0; max-width: 320px; }
+            </style>
+          </head>
+          <body>
+            <h1>网络未连接</h1>
+            <p>音频播放器需要联网获取总部的最新曲目。请检查门店网络后，重新打开应用。</p>
+          </body>
+          </html>
+          EOF
+          echo "已收集网页资源（联网加载线上页面，本地保留断网提示页）:"
           ls -lh www
 
       - name: 安装依赖
