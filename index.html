@@ -78,8 +78,9 @@ body:not(.is-admin) .delete-btn { display: none; }
 .player-track-info .track-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-right: 12px; font-weight: 500; }
 .player-track-info .track-time { color: #94a3b8; font-variant-numeric: tabular-nums; flex-shrink: 0; }
 .progress-wrap { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-.progress-bar { flex: 1; height: 6px; background: rgba(255,255,255,.15); border-radius: 3px; position: relative; cursor: pointer; }
+.progress-bar { flex: 1; height: 6px; background: rgba(255,255,255,.15); border-radius: 3px; position: relative; cursor: pointer; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; padding: 11px 0; background-clip: content-box; }
 .progress-fill { height: 100%; background: var(--primary); border-radius: 3px; width: 0%; position: relative; transition: width .1s linear; }
+.progress-bar.dragging .progress-fill { transition: none; }
 .progress-fill::after { content: ''; position: absolute; right: -6px; top: 50%; transform: translateY(-50%); width: 12px; height: 12px; background: #fff; border-radius: 50%; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
 .time-label { font-size: .72rem; color: #94a3b8; font-variant-numeric: tabular-nums; min-width: 32px; }
 .player-controls { display: flex; align-items: center; justify-content: center; gap: 16px; }
@@ -397,37 +398,74 @@ window.__nativeSetMode = (m) => {
 };
 
 let isSeeking = false;
-function updateProgress() {
+let seekTarget = -1;
+let seekGuard = null;
+let lastPointerEnd = 0;
+
+function paintTime(t) {
   if (!audio.duration || !isFinite(audio.duration)) return;
-  if (isSeeking) return;
-  progressFill.style.width=(audio.currentTime/audio.duration*100)+'%';
-  currentTimeEl.textContent=formatTime(audio.currentTime);
-  durationTimeEl.textContent=formatTime(audio.duration);
-  trackTime.textContent=formatTime(audio.currentTime)+' / '+formatTime(audio.duration);
-}
-/* ==== 进度条：点击 + 拖动 ==== */
-function seekTo(clientX) {
-  if (!audio.duration || !isFinite(audio.duration)) return;
-  const r = progressBar.getBoundingClientRect();
-  let p = (clientX - r.left) / r.width;
-  p = Math.max(0, Math.min(1, p));
-  const t = p * audio.duration;
-  progressFill.style.width = (p * 100) + '%';
+  progressFill.style.width = (t / audio.duration * 100) + '%';
   currentTimeEl.textContent = formatTime(t);
   durationTimeEl.textContent = formatTime(audio.duration);
   trackTime.textContent = formatTime(t) + ' / ' + formatTime(audio.duration);
-  try { audio.currentTime = t; } catch (e) {}
 }
+function updateProgress() {
+  if (!audio.duration || !isFinite(audio.duration)) return;
+  if (isSeeking) return;                 // 手指还在拖：以手指位置为准
+  if (seekTarget >= 0) { paintTime(seekTarget); return; }  // 已松手，等跳转完成
+  paintTime(audio.currentTime);
+}
+function posToTime(clientX) {
+  const r = progressBar.getBoundingClientRect();
+  let p = (clientX - r.left) / r.width;
+  p = Math.max(0, Math.min(1, p));
+  return p * audio.duration;
+}
+function startSeek(clientX) {
+  if (!audio.duration || !isFinite(audio.duration)) { showToast('音频还在加载，请稍候'); return; }
+  seekTarget = posToTime(clientX);
+  paintTime(seekTarget);
+}
+function commitSeek() {
+  if (seekTarget < 0) return;
+  const t = seekTarget;
+  try { audio.currentTime = t; } catch (e) {}
+  clearTimeout(seekGuard);
+  // 8 秒还没跳过去就放弃，恢复真实进度
+  seekGuard = setTimeout(() => { seekTarget = -1; updateProgress(); }, 8000);
+}
+
 progressBar.addEventListener('pointerdown', e => {
   if (!audio.duration || !isFinite(audio.duration)) { showToast('音频还在加载，请稍候'); return; }
   isSeeking = true;
+  progressBar.classList.add('dragging');
   try { progressBar.setPointerCapture(e.pointerId); } catch (err) {}
-  seekTo(e.clientX);
+  startSeek(e.clientX);
 });
-progressBar.addEventListener('pointermove', e => { if (isSeeking) seekTo(e.clientX); });
-progressBar.addEventListener('pointerup', () => { isSeeking = false; });
-progressBar.addEventListener('pointercancel', () => { isSeeking = false; });
-progressBar.addEventListener('click', e => { seekTo(e.clientX); });
+progressBar.addEventListener('pointermove', e => {
+  if (!isSeeking) return;
+  e.preventDefault();
+  startSeek(e.clientX);           // 拖动中只移动画面，不真的跳转
+});
+progressBar.addEventListener('pointerup', () => {
+  if (!isSeeking) return;
+  isSeeking = false;
+  progressBar.classList.remove('dragging');
+  lastPointerEnd = Date.now();
+  commitSeek();                   // 松手这一下才真正跳转
+});
+progressBar.addEventListener('pointercancel', () => {
+  isSeeking = false; seekTarget = -1;
+  progressBar.classList.remove('dragging');
+  updateProgress();
+});
+progressBar.addEventListener('click', e => {
+  if (Date.now() - lastPointerEnd < 400) return;   // 拖动结束后的 click 忽略
+  if (!audio.duration || !isFinite(audio.duration)) return;
+  seekTarget = posToTime(e.clientX);
+  paintTime(seekTarget);
+  commitSeek();
+});
 
 /* ==== 缓冲提示 ==== */
 let lastBufferToast = 0;
@@ -437,7 +475,11 @@ audio.addEventListener('waiting', () => {
 });
 audio.addEventListener('canplay', () => { updateProgress(); });
 audio.addEventListener('playing', () => { updateProgress(); });
-audio.addEventListener('seeked', () => { updateProgress(); });
+audio.addEventListener('seeked', () => {
+  clearTimeout(seekGuard);
+  seekTarget = -1;
+  updateProgress();
+});
 volumeSlider.addEventListener('input', () => audio.volume=volumeSlider.value/100);
 async function downloadTrack(idx) {
   const item=playlist[idx]; if(!item)return;
