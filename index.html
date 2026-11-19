@@ -78,7 +78,8 @@ body:not(.is-admin) .delete-btn { display: none; }
 .player-track-info .track-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-right: 12px; font-weight: 500; }
 .player-track-info .track-time { color: #94a3b8; font-variant-numeric: tabular-nums; flex-shrink: 0; }
 .progress-wrap { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-.progress-bar { flex: 1; height: 6px; background: rgba(255,255,255,.15); border-radius: 3px; position: relative; cursor: pointer; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; padding: 11px 0; background-clip: content-box; }
+.progress-bar { flex: 1; height: 6px; background: rgba(255,255,255,.15); border-radius: 3px; position: relative; cursor: pointer; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+.progress-bar::before { content: ''; position: absolute; left: 0; right: 0; top: -11px; bottom: -11px; }
 .progress-fill { height: 100%; background: var(--primary); border-radius: 3px; width: 0%; position: relative; transition: width .1s linear; }
 .progress-bar.dragging .progress-fill { transition: none; }
 .progress-fill::after { content: ''; position: absolute; right: -6px; top: 50%; transform: translateY(-50%); width: 12px; height: 12px; background: #fff; border-radius: 50%; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
