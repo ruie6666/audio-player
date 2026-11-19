@@ -56,6 +56,19 @@ public class MainActivity extends BridgeActivity {
 
         registerMediaReceiver();
         setupWebView();
+        forceFreshLoad();
+    }
+
+    // 每次启动都取最新的线上页面：给地址加时间戳绕过网页缓存
+    // （只影响 index.html 这类小文件，音频/图片的缓存照常保留，不会重复下载）
+    private void forceFreshLoad() {
+        try {
+            if (getBridge() == null || getBridge().getWebView() == null) return;
+            String url = "https://ruie6666.github.io/audio-player/?t=" + System.currentTimeMillis();
+            getBridge().getWebView().loadUrl(url);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     private void setupWebView() {
