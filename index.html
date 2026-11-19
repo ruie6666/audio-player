@@ -358,10 +358,10 @@ function playAt(idx) {
   const pr = audio.play();
   if (pr && pr.catch) pr.catch(() => {});
   isPlaying = true;
-  playerBar.classList.add('active'); trackName.textContent = item.name; renderList(); syncMedia();
+  playerBar.classList.add('active'); trackName.textContent = item.name; renderList(); syncMedia(); pushMediaProgress(true);
 }
-audio.addEventListener('play', () => { isPlaying=true; playIcon.style.display='none'; pauseIcon.style.display=''; renderList(); syncMedia(); });
-audio.addEventListener('pause', () => { isPlaying=false; playIcon.style.display=''; pauseIcon.style.display='none'; renderList(); syncMedia(); });
+audio.addEventListener('play', () => { isPlaying=true; playIcon.style.display='none'; pauseIcon.style.display=''; renderList(); syncMedia(); pushMediaProgress(true); });
+audio.addEventListener('pause', () => { isPlaying=false; playIcon.style.display=''; pauseIcon.style.display='none'; renderList(); syncMedia(); pushMediaProgress(true); });
 audio.addEventListener('timeupdate', updateProgress);
 audio.addEventListener('loadedmetadata', updateProgress);
 audio.addEventListener('ended', handleEnded);
@@ -386,6 +386,18 @@ function syncMedia() {
       const name = (currentIndex >= 0 && playlist[currentIndex]) ? playlist[currentIndex].name : '天天音乐';
       window.AndroidMedia.update(name, !!isPlaying, playMode);
     }
+  } catch (e) {}
+}
+/* 把播放位置推给系统媒体卡片，让下拉通知栏的进度条与 App 内保持一致 */
+var lastProgressPush = 0;
+function pushMediaProgress(force) {
+  try {
+    if (!window.AndroidMedia || !window.AndroidMedia.progress) return;
+    const now = Date.now();
+    if (!force && now - lastProgressPush < 900) return;
+    lastProgressPush = now;
+    const dur = (audio.duration && isFinite(audio.duration)) ? audio.duration : 0;
+    window.AndroidMedia.progress(audio.currentTime || 0, dur);
   } catch (e) {}
 }
 window.__nativePlay = () => {
@@ -417,6 +429,7 @@ function paintTime(t) {
   trackTime.textContent = formatTime(t) + ' / ' + formatTime(audio.duration);
 }
 function updateProgress() {
+  pushMediaProgress(false);
   if (!audio.duration || !isFinite(audio.duration)) return;
   if (isSeeking) return;                 // 手指还在拖：以手指位置为准
   if (seekTarget >= 0) { paintTime(seekTarget); return; }  // 已松手，等跳转完成
@@ -486,6 +499,7 @@ audio.addEventListener('seeked', () => {
   clearTimeout(seekGuard);
   seekTarget = -1;
   updateProgress();
+  pushMediaProgress(true);
 });
 volumeSlider.addEventListener('input', () => audio.volume=volumeSlider.value/100);
 async function downloadTrack(idx) {
