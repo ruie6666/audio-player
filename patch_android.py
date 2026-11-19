@@ -144,6 +144,15 @@ public class MainActivity extends BridgeActivity {
         public void update(String title, boolean playing, String mode) {
             PlaybackService.update(title, playing, mode);
         }
+
+        /** 网页调用：同步播放进度（秒），让通知栏进度条与 App 内一致 */
+        @JavascriptInterface
+        public void progress(double positionSec, double durationSec) {
+            if (Double.isNaN(positionSec) || Double.isInfinite(positionSec)) positionSec = 0;
+            if (Double.isNaN(durationSec) || Double.isInfinite(durationSec)) durationSec = 0;
+            PlaybackService.updateProgress(
+                    (long) (positionSec * 1000L), (long) (durationSec * 1000L));
+        }
     }
 }
 """
@@ -183,6 +192,8 @@ public class PlaybackService extends Service {
     private String currentTitle = "天天音乐";
     private String currentMode = "loop";
     private boolean isPlaying = false;
+    private long positionMs = 0;
+    private long durationMs = 0;
 
     @Override
     public void onCreate() {
@@ -230,6 +241,10 @@ public class PlaybackService extends Service {
         PlaybackService s = instance;
         if (s == null) return;
         if (title != null && title.length() > 0) {
+            if (!title.equals(s.currentTitle)) {
+                s.positionMs = 0;   // 换曲了，进度从头开始
+                s.durationMs = 0;
+            }
             s.currentTitle = title;
         }
         if (mode != null && mode.length() > 0) {
@@ -237,6 +252,22 @@ public class PlaybackService extends Service {
         }
         s.isPlaying = playing;
         s.refresh();
+    }
+
+    /** 网页调用，只同步播放进度，重建通知较重所以这里只更新媒体会话状态 */
+    public static void updateProgress(long posMs, long durMs) {
+        PlaybackService s = instance;
+        if (s == null) return;
+        boolean durChanged = durMs > 0 && Math.abs(durMs - s.durationMs) > 500;
+        s.positionMs = posMs;
+        if (durMs > 0) {
+            s.durationMs = durMs;
+        }
+        if (durChanged) {
+            s.applyMetadata();
+            s.pushNotification();
+        }
+        s.applyPlaybackState();
     }
 
     private String modeLabel() {
@@ -257,24 +288,46 @@ public class PlaybackService extends Service {
 
     private void refresh() {
         try {
-            MediaMetadata md = new MediaMetadata.Builder()
-                    .putString(MediaMetadata.METADATA_KEY_TITLE, currentTitle)
-                    .putString(MediaMetadata.METADATA_KEY_ARTIST, "天天音乐")
-                    .putString(MediaMetadata.METADATA_KEY_ALBUM, "门店音频")
-                    .build();
-            mediaSession.setMetadata(md);
+            applyMetadata();
+            applyPlaybackState();
+            pushNotification();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
 
-            int state = isPlaying ? PlaybackState.STATE_PLAYING : PlaybackState.STATE_PAUSED;
-            PlaybackState ps = new PlaybackState.Builder()
-                    .setActions(PlaybackState.ACTION_PLAY
-                            | PlaybackState.ACTION_PAUSE
-                            | PlaybackState.ACTION_PLAY_PAUSE
-                            | PlaybackState.ACTION_SKIP_TO_NEXT
-                            | PlaybackState.ACTION_SKIP_TO_PREVIOUS)
-                    .setState(state, PlaybackState.PLAYBACK_POSITION_UNKNOWN, 1.0f)
-                    .build();
-            mediaSession.setPlaybackState(ps);
+    private void applyMetadata() {
+        MediaMetadata.Builder mb = new MediaMetadata.Builder()
+                .putString(MediaMetadata.METADATA_KEY_TITLE, currentTitle)
+                .putString(MediaMetadata.METADATA_KEY_ARTIST, "天天音乐")
+                .putString(MediaMetadata.METADATA_KEY_ALBUM, "门店音频");
+        if (durationMs > 0) {
+            mb.putLong(MediaMetadata.METADATA_KEY_DURATION, durationMs);
+        }
+        mediaSession.setMetadata(mb.build());
+    }
 
+    private void applyPlaybackState() {
+        int state = isPlaying ? PlaybackState.STATE_PLAYING : PlaybackState.STATE_PAUSED;
+        // 播放时给 1.0 倍速，系统会按 position 自己往前走；网页每秒回推一次校正漂移
+        float speed = isPlaying ? 1.0f : 0.0f;
+        long pos = positionMs < 0 ? 0 : positionMs;
+        if (durationMs > 0 && pos > durationMs) {
+            pos = durationMs;
+        }
+        PlaybackState ps = new PlaybackState.Builder()
+                .setActions(PlaybackState.ACTION_PLAY
+                        | PlaybackState.ACTION_PAUSE
+                        | PlaybackState.ACTION_PLAY_PAUSE
+                        | PlaybackState.ACTION_SKIP_TO_NEXT
+                        | PlaybackState.ACTION_SKIP_TO_PREVIOUS)
+                .setState(state, pos, speed)
+                .build();
+        mediaSession.setPlaybackState(ps);
+    }
+
+    private void pushNotification() {
+        try {
             NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
             if (nm != null) {
                 nm.notify(NOTIF_ID, buildNotification());
