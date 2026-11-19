@@ -236,6 +236,12 @@ const DEFAULT_LIST = [
 let playlist=[],currentIndex=-1,isPlaying=false,playMode='loop';
 let audio=new Audio();audio.volume=0.8;audio.preload='auto';let isAdmin=false;let loadedUrl=null;
 const $=id=>document.getElementById(id);
+const playerBar=$('playerBar'), trackName=$('trackName'), trackTime=$('trackTime');
+const progressBar=$('progressBar'), progressFill=$('progressFill');
+const currentTimeEl=$('currentTime'), durationTimeEl=$('durationTime');
+const playBtn=$('playBtn'), prevBtn=$('prevBtn'), nextBtn=$('nextBtn'), modeBtn=$('modeBtn');
+const playIcon=$('playIcon'), pauseIcon=$('pauseIcon');
+const volumeSlider=$('volumeSlider'), countBadge=$('countBadge'), audioList=$('audioList');
 async function loadRemoteList() {
   $('loadingState').style.display = 'block';
   $('updateTime').textContent = '正在连接总部...';
