@@ -233,7 +233,7 @@ const DEFAULT_LIST = [
   {"name": "11月上半室内音频", "url": "./11月上半室内音频_压缩.mp3"}
 ];
 let playlist=[],currentIndex=-1,isPlaying=false,playMode='loop';
-let audio=new Audio();audio.volume=0.8;let isAdmin=false;
+let audio=new Audio();audio.volume=0.8;audio.preload='auto';let isAdmin=false;let loadedUrl=null;
 const $=id=>document.getElementById(id);
 async function loadRemoteList() {
   $('loadingState').style.display = 'block';
@@ -253,11 +253,13 @@ async function loadRemoteList() {
     });
     $('updateTime').textContent = '总部在线 · 更新于 ' + new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'});
     renderList();
+    preloadFirst();
   } catch(e) {
     useDefaultList();
   }
 }
-$('refreshBtn').addEventListener('click', () => { showToast('正在刷新...'); function useDefaultList() {
+$('refreshBtn').addEventListener('click', () => { showToast('正在刷新...'); loadRemoteList(); });
+function useDefaultList() {
   playlist = DEFAULT_LIST.map(item => ({
     id: Date.now()+Math.random(), name: item.name, url: item.url,
     remote: true, duration: 0, file: null
@@ -268,8 +270,15 @@ $('refreshBtn').addEventListener('click', () => { showToast('正在刷新...'); 
   });
   $('updateTime').textContent = '本地模式（点击刷新重试连接总部）';
   renderList();
+  preloadFirst();
 }
-loadRemoteList(); });
+/* 进页面先把第一首挂上去开始缓冲，点播放时不用等太久 */
+function preloadFirst() {
+  if (!playlist.length || loadedUrl) return;
+  loadedUrl = playlist[0].url;
+  try { audio.src = loadedUrl; audio.preload = 'auto'; } catch (e) {}
+}
+loadRemoteList();
 let pressTimer;
 $('titleArea').addEventListener('touchstart', () => { pressTimer = setTimeout(() => { if (!isAdmin) $('pwdOverlay').classList.add('show'); else logoutAdmin(); }, 800); });
 $('titleArea').addEventListener('touchend', () => clearTimeout(pressTimer));
@@ -331,8 +340,17 @@ function renderList() {
 }
 function playAt(idx) {
   if (idx<0||idx>=playlist.length) return;
-  currentIndex = idx; audio.src = playlist[idx].url; audio.play(); isPlaying = true;
-  playerBar.classList.add('active'); trackName.textContent = playlist[idx].name; renderList(); syncMedia();
+  const item = playlist[idx];
+  currentIndex = idx;
+  if (loadedUrl !== item.url) {
+    loadedUrl = item.url;
+    audio.src = item.url;
+    try { audio.load(); } catch (e) {}
+  }
+  const pr = audio.play();
+  if (pr && pr.catch) pr.catch(() => {});
+  isPlaying = true;
+  playerBar.classList.add('active'); trackName.textContent = item.name; renderList(); syncMedia();
 }
 audio.addEventListener('play', () => { isPlaying=true; playIcon.style.display='none'; pauseIcon.style.display=''; renderList(); syncMedia(); });
 audio.addEventListener('pause', () => { isPlaying=false; playIcon.style.display=''; pauseIcon.style.display='none'; renderList(); syncMedia(); });
@@ -370,15 +388,56 @@ window.__nativePause = () => { if (!audio.paused) audio.pause(); };
 window.__nativeNext = () => { if (!playlist.length) return; let i = currentIndex + 1; if (i >= playlist.length) i = 0; playAt(i); };
 window.__nativePrev = () => { if (!playlist.length) return; let i = currentIndex - 1; if (i < 0) i = playlist.length - 1; playAt(i); };
 window.__nativeCycle = () => { modeBtn.click(); };
+window.__nativeSetMode = (m) => {
+  if (m !== 'single' && m !== 'shuffle') m = 'loop';
+  playMode = m;
+  if (playMode === 'loop') { modeBtn.classList.remove('active'); } else { modeBtn.classList.add('active'); }
+  showToast(m === 'single' ? '单曲循环' : (m === 'shuffle' ? '随机播放' : '列表循环'));
+  syncMedia();
+};
 
+let isSeeking = false;
 function updateProgress() {
-  if (!audio.duration) return;
+  if (!audio.duration || !isFinite(audio.duration)) return;
+  if (isSeeking) return;
   progressFill.style.width=(audio.currentTime/audio.duration*100)+'%';
   currentTimeEl.textContent=formatTime(audio.currentTime);
   durationTimeEl.textContent=formatTime(audio.duration);
   trackTime.textContent=formatTime(audio.currentTime)+' / '+formatTime(audio.duration);
 }
-progressBar.addEventListener('click', e => { if (!audio.duration) return; const r=progressBar.getBoundingClientRect(); audio.currentTime=((e.clientX-r.left)/r.width)*audio.duration; });
+/* ==== 进度条：点击 + 拖动 ==== */
+function seekTo(clientX) {
+  if (!audio.duration || !isFinite(audio.duration)) return;
+  const r = progressBar.getBoundingClientRect();
+  let p = (clientX - r.left) / r.width;
+  p = Math.max(0, Math.min(1, p));
+  const t = p * audio.duration;
+  progressFill.style.width = (p * 100) + '%';
+  currentTimeEl.textContent = formatTime(t);
+  durationTimeEl.textContent = formatTime(audio.duration);
+  trackTime.textContent = formatTime(t) + ' / ' + formatTime(audio.duration);
+  try { audio.currentTime = t; } catch (e) {}
+}
+progressBar.addEventListener('pointerdown', e => {
+  if (!audio.duration || !isFinite(audio.duration)) { showToast('音频还在加载，请稍候'); return; }
+  isSeeking = true;
+  try { progressBar.setPointerCapture(e.pointerId); } catch (err) {}
+  seekTo(e.clientX);
+});
+progressBar.addEventListener('pointermove', e => { if (isSeeking) seekTo(e.clientX); });
+progressBar.addEventListener('pointerup', () => { isSeeking = false; });
+progressBar.addEventListener('pointercancel', () => { isSeeking = false; });
+progressBar.addEventListener('click', e => { seekTo(e.clientX); });
+
+/* ==== 缓冲提示 ==== */
+let lastBufferToast = 0;
+audio.addEventListener('waiting', () => {
+  const now = Date.now();
+  if (now - lastBufferToast > 4000) { lastBufferToast = now; showToast('网络缓冲中，请稍候…'); }
+});
+audio.addEventListener('canplay', () => { updateProgress(); });
+audio.addEventListener('playing', () => { updateProgress(); });
+audio.addEventListener('seeked', () => { updateProgress(); });
 volumeSlider.addEventListener('input', () => audio.volume=volumeSlider.value/100);
 async function downloadTrack(idx) {
   const item=playlist[idx]; if(!item)return;
